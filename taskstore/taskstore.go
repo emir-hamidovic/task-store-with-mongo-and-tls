@@ -1,20 +1,16 @@
 package taskstore
 
-import (
-	"time"
-)
-
 type Taskstore interface {
-	CreateTask(text string, tags []string, due time.Time) int
-	GetTaskById(id int) (Task, error)
-	DeleteTask(id int)
+	CreateTask(text string, tags []string, due string) string
+	GetTaskById(id string) (Task, error)
+	DeleteTask(id string)
 	DeleteAll()
 	GetAllTasks() []Task
 }
 
 type Task struct {
-	Id   int       `json:"id"`
-	Text string    `json:"text"`
-	Tags []string  `json:"tags"`
-	Due  time.Time `json:"due"`
+	Id   string   `json:"id" bson:"_id,omitempty"`
+	Text string   `json:"text" bson:"text"`
+	Tags []string `json:"tags" bson:"tags"`
+	Due  string   `json:"due" bson:"due"`
 }

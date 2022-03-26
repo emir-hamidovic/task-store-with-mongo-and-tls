@@ -5,11 +5,10 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"strconv"
 	"strings"
-	"sync"
 
-	"taskstore"
+	"rest/taskstore"
+	"rest/taskstore/mongotaskstore"
 )
 
 type TaskServer struct {
@@ -34,7 +33,7 @@ func (t *TaskServer) TaskHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			id := t.store.CreateTask(task.Text, task.Tags, task.Due)
-			fmt.Fprintf(w, "Task created successfully with id: %d\n", id)
+			fmt.Fprintf(w, "Task created successfully with id: %s\n", id)
 			return
 		} else if r.Method == http.MethodDelete {
 			t.store.DeleteAll()
@@ -42,7 +41,7 @@ func (t *TaskServer) TaskHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else if len(urlPart) == 2 {
-		id, _ := strconv.Atoi(urlPart[1])
+		id := urlPart[1]
 		if r.Method == http.MethodGet {
 			task, err := t.store.GetTaskById(id)
 			if err != nil {
@@ -77,8 +76,13 @@ func NewServer(ts taskstore.Taskstore) *TaskServer {
 
 func main() {
 	mux := http.NewServeMux()
-	inmem := &taskstore.InMemory{Tasks: sync.Map{}, NextId: 0}
-	router := NewServer(inmem)
+	/*inmem := &inmemory.InMemory{Tasks: sync.Map{}, NextId: 0}
+	router := NewServer(inmem)*/
+
+	mng := mongotaskstore.NewMongoServer("", "", "")
+	defer mng.CloseMongoServer()
+	router := NewServer(mng)
+
 	mux.HandleFunc("/task/", router.TaskHandler)
 
 	log.Printf("Listening on 3333\n")

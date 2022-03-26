@@ -1,10 +1,11 @@
-package taskstore
+package inmemory
 
 import (
 	"errors"
 	"log"
+	"rest/taskstore"
+	"strconv"
 	"sync"
-	"time"
 )
 
 type InMemory struct {
@@ -13,34 +14,34 @@ type InMemory struct {
 	NextId int
 }
 
-func (t *InMemory) CreateTask(text string, tags []string, due time.Time) int {
+func (t *InMemory) CreateTask(text string, tags []string, due string) string {
 	log.Printf("Create task in progress\n")
 	t.mtx.Lock()
 	defer t.mtx.Unlock()
 	t.NextId++
-	task := Task{Id: t.NextId, Text: text, Due: due}
+	task := taskstore.Task{Id: strconv.Itoa(t.NextId), Text: text, Due: due}
 	task.Tags = make([]string, len(tags))
 	copy(task.Tags, tags)
 
 	t.Tasks.Store(t.NextId, task)
-	return t.NextId
+	return strconv.Itoa(t.NextId)
 }
 
-func (t *InMemory) GetTaskById(id int) (Task, error) {
+func (t *InMemory) GetTaskById(id string) (taskstore.Task, error) {
 	log.Printf("Get task by ID in progress\n")
 	if x, found := t.Tasks.Load(id); found {
-		v, ok := x.(Task)
+		v, ok := x.(taskstore.Task)
 		if ok {
 			return v, nil
 		}
 
-		return Task{}, errors.New("returned value is not of type Task")
+		return taskstore.Task{}, errors.New("returned value is not of type taskstore.Task")
 	}
 
-	return Task{}, errors.New("couldn't find task with specified ID")
+	return taskstore.Task{}, errors.New("couldn't find task with specified ID")
 }
 
-func (t *InMemory) DeleteTask(id int) {
+func (t *InMemory) DeleteTask(id string) {
 	log.Printf("Delete in progress\n")
 	t.Tasks.Delete(id)
 }
@@ -53,12 +54,12 @@ func (t *InMemory) DeleteAll() {
 	})
 }
 
-func (t *InMemory) GetAllTasks() []Task {
+func (t *InMemory) GetAllTasks() []taskstore.Task {
 	log.Printf("Get all tasks in progress\n")
 
-	tasks := make([]Task, 0)
+	tasks := make([]taskstore.Task, 0)
 	t.Tasks.Range(func(key interface{}, value interface{}) bool {
-		v, ok := value.(Task)
+		v, ok := value.(taskstore.Task)
 		if ok {
 			tasks = append(tasks, v)
 			return true
