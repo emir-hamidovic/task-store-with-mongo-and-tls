@@ -1,11 +1,11 @@
 package taskstore
 
 type Taskstore interface {
-	CreateTask(text string, tags []string, due string) string
+	CreateTask(text string, tags []string, due string) (string, error)
 	GetTaskById(id string) (Task, error)
-	DeleteTask(id string)
-	DeleteAll()
-	GetAllTasks() []Task
+	DeleteTask(id string) error
+	DeleteAll() error
+	GetAllTasks() ([]Task, error)
 }
 
 type Task struct {
