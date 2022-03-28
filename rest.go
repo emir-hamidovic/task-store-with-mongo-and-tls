@@ -99,12 +99,11 @@ func NewServer(ts taskstore.Taskstore) *TaskServer {
 	return &TaskServer{store: ts}
 }
 
-// refactor everything together
 // want to implement rate limiting and use gorilla mux here
 // later, i want this to be able on https (eli bednersky website)
 // maybe implement a Makefile and/or Dockerfile for this after all this?
 
-// side note: research context package, tests overall
+// side note: research context package, tests overall, gopkg.in/check.v1
 func main() {
 	mux := http.NewServeMux()
 	/*inmem := &inmemory.InMemory{Tasks: sync.Map{}, NextId: 0}
@@ -114,6 +113,7 @@ func main() {
 	defer mng.CloseMongoServer()
 	if err != nil {
 		fmt.Printf("Error: %s", err.Error())
+		return
 	}
 
 	router := NewServer(mng)

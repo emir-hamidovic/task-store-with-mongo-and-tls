@@ -3,7 +3,6 @@ package mongotaskstore
 import (
 	"context"
 	"errors"
-	"fmt"
 	"rest/taskstore"
 	"time"
 
@@ -104,20 +103,17 @@ func (m *Mongo) DeleteTask(id string) error {
 
 	if res.DeletedCount == 0 {
 		return errors.New("deleteOne() document not found")
-	} else {
-		fmt.Println("DeleteOne Result:", res)
 	}
 
 	return nil
 }
 
 func (m *Mongo) DeleteAll() error {
-	res, err := m.collectionHandler.DeleteMany(context.TODO(), bson.M{})
+	_, err := m.collectionHandler.DeleteMany(context.TODO(), bson.M{})
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("DeleteMany() TOTAL: %d\n", res.DeletedCount)
 	return nil
 }
 
