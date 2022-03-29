@@ -5,83 +5,76 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"strings"
+	"time"
 
 	"rest/taskstore"
 	"rest/taskstore/mongotaskstore"
+
+	"github.com/gorilla/mux"
 )
 
 type TaskServer struct {
 	store taskstore.Taskstore
 }
 
-func (t *TaskServer) TaskHandler(w http.ResponseWriter, r *http.Request) {
-	log.Printf("Task handler\n")
-	trimmedURL := strings.Trim(r.URL.Path, "/")
-	urlPart := strings.Split(trimmedURL, "/")
-	if trimmedURL == "task" {
-		if r.Method == http.MethodGet {
-			log.Printf("Get all tasks in progress\n")
-			tasks, err := t.store.GetAllTasks()
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-
-			jsonRender(w, tasks)
-			return
-		} else if r.Method == http.MethodPost {
-			var task taskstore.Task
-			err := json.NewDecoder(r.Body).Decode(&task)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-
-			log.Printf("Create task in progress\n")
-			id, err := t.store.CreateTask(task.Text, task.Tags, task.Due)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-
-			fmt.Fprintf(w, "Task created successfully with id: %s\n", id)
-			return
-		} else if r.Method == http.MethodDelete {
-			log.Printf("Delete all in progress\n")
-			err := t.store.DeleteAll()
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-
-			fmt.Fprintf(w, "Tasks deleted successfully\n")
-			return
-		}
-	} else if len(urlPart) == 2 {
-		id := urlPart[1]
-		if r.Method == http.MethodGet {
-			log.Printf("Get task by ID in progress\n")
-			task, err := t.store.GetTaskById(id)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-
-			jsonRender(w, task)
-			return
-		} else if r.Method == http.MethodDelete {
-			log.Printf("Delete in progress\n")
-			err := t.store.DeleteTask(id)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-
-			fmt.Fprintf(w, "Task deleted successfully\n")
-			return
-		}
+func (t *TaskServer) HandlePostTask(w http.ResponseWriter, r *http.Request) {
+	var task taskstore.Task
+	err := json.NewDecoder(r.Body).Decode(&task)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
 	}
+
+	log.Printf("Create task in progress\n")
+	id, err := t.store.CreateTask(task.Text, task.Tags, task.Due)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	fmt.Fprintf(w, "Task created successfully with id: %s\n", id)
+}
+func (t *TaskServer) HandleGetTasks(w http.ResponseWriter, r *http.Request) {
+	log.Printf("Get all tasks in progress\n")
+	tasks, err := t.store.GetAllTasks()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	jsonRender(w, tasks)
+}
+func (t *TaskServer) HandleDeleteTasks(w http.ResponseWriter, r *http.Request) {
+	log.Printf("Delete all in progress\n")
+	err := t.store.DeleteAll()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	fmt.Fprintf(w, "Tasks deleted successfully\n")
+}
+func (t *TaskServer) HandleGetTaskByID(w http.ResponseWriter, r *http.Request) {
+	log.Printf("Get task by ID in progress\n")
+	vars := mux.Vars(r)
+	task, err := t.store.GetTaskById(vars["id"])
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	jsonRender(w, task)
+}
+func (t *TaskServer) HandleDeleteTaskByID(w http.ResponseWriter, r *http.Request) {
+	log.Printf("Delete in progress\n")
+	vars := mux.Vars(r)
+	err := t.store.DeleteTask(vars["id"])
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	fmt.Fprintf(w, "Task deleted successfully\n")
 }
 
 func jsonRender(w http.ResponseWriter, v interface{}) {
@@ -99,16 +92,14 @@ func NewServer(ts taskstore.Taskstore) *TaskServer {
 	return &TaskServer{store: ts}
 }
 
-// want to implement rate limiting and use gorilla mux here
+// rate limiting
+// middleware
 // later, i want this to be able on https (eli bednersky website)
+// port needs to be configurable
 // maybe implement a Makefile and/or Dockerfile for this after all this?
 
 // side note: research context package, tests overall, gopkg.in/check.v1
 func main() {
-	mux := http.NewServeMux()
-	/*inmem := &inmemory.InMemory{Tasks: sync.Map{}, NextId: 0}
-	router := NewServer(inmem)*/
-
 	mng, err := mongotaskstore.NewMongoServer("", "", "")
 	defer mng.CloseMongoServer()
 	if err != nil {
@@ -118,8 +109,20 @@ func main() {
 
 	router := NewServer(mng)
 
-	mux.HandleFunc("/task/", router.TaskHandler)
+	r := mux.NewRouter()
+	r.HandleFunc("/task", router.HandlePostTask).Methods("POST")
+	r.HandleFunc("/task", router.HandleGetTasks).Methods("GET")
+	r.HandleFunc("/task", router.HandleDeleteTasks).Methods("DELETE")
+	r.HandleFunc("/task/{id:[0-9a-zA-z-]+}", router.HandleGetTaskByID).Methods("GET")
+	r.HandleFunc("/task/{id:[0-9a-zA-z-]+}", router.HandleDeleteTaskByID).Methods("DELETE")
+
+	srv := &http.Server{
+		Handler:      r,
+		Addr:         "127.0.0.1:3333",
+		WriteTimeout: 5 * time.Second,
+		ReadTimeout:  5 * time.Second,
+	}
 
 	log.Printf("Listening on 3333.\n")
-	log.Fatal(http.ListenAndServe(":3333", mux))
+	log.Fatal(srv.ListenAndServe())
 }
