@@ -104,10 +104,6 @@ func limitNumClients(f http.HandlerFunc, maxClients int) http.HandlerFunc {
 	}
 }
 
-// later, i want this to be able on https (eli bednersky website)
-// maybe implement a Makefile and/or Dockerfile for this after all this?
-
-// side note: research context package, tests overall, gopkg.in/check.v1
 func main() {
 	keyPem := flag.String("key", "key.pem", "key file for https server")
 	certPem := flag.String("cert", "cert.pem", "cert file for https server")
