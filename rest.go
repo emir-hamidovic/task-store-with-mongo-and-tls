@@ -1,7 +1,10 @@
 package main
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -106,11 +109,15 @@ func limitNumClients(f http.HandlerFunc, maxClients int) http.HandlerFunc {
 
 // side note: research context package, tests overall, gopkg.in/check.v1
 func main() {
+	keyPem := flag.String("key", "key.pem", "key file for https server")
+	certPem := flag.String("cert", "cert.pem", "cert file for https server")
+	clientCertPem := flag.String("clientcert", "clientcert.pem", "cert file for https client")
+	flag.Parse()
+
 	mng, err := mongotaskstore.NewMongoServer("", "", "")
 	defer mng.CloseMongoServer()
 	if err != nil {
-		fmt.Printf("Error: %s", err.Error())
-		return
+		log.Fatal(err)
 	}
 
 	router := NewServer(mng)
@@ -132,13 +139,26 @@ func main() {
 		port = "3333"
 	}
 
+	clientCert, err := os.ReadFile(*clientCertPem)
+	if err != nil {
+		log.Fatal(err)
+	}
+	clientCertPool := x509.NewCertPool()
+	clientCertPool.AppendCertsFromPEM(clientCert)
+
 	srv := &http.Server{
 		Handler:      http.TimeoutHandler(r, 1*time.Second, "Timeout!\n"),
-		Addr:         fmt.Sprintf("127.0.0.1:%s", port),
+		Addr:         fmt.Sprintf("localhost:%s", port),
 		WriteTimeout: 5 * time.Second,
 		ReadTimeout:  5 * time.Second,
+		TLSConfig: &tls.Config{
+			MinVersion:               tls.VersionTLS13,
+			PreferServerCipherSuites: true,
+			ClientCAs:                clientCertPool,
+			ClientAuth:               tls.RequireAndVerifyClientCert,
+		},
 	}
 
 	log.Printf("Listening on %s.\n", port)
-	log.Fatal(srv.ListenAndServe())
+	log.Fatal(srv.ListenAndServeTLS(*certPem, *keyPem))
 }
